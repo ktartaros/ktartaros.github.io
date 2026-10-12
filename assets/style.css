@@ -124,3 +124,7 @@ iframe { max-width: 100%; }
 .ex-year a { text-decoration: none; }
 .ex-year a:hover { text-decoration: underline; }
 @media (max-width: 600px) { .ex-year { grid-template-columns: 1fr; gap: 4px; } }
+
+/* COLUMN（note） */
+.lead { text-align: center; color: var(--muted); font-size: 14px; margin: -12px 0 28px; }
+.card-text { font-size: 13px; color: var(--muted); line-height: 1.6; margin-top: 4px; }
