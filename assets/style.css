@@ -128,3 +128,8 @@ iframe { max-width: 100%; }
 /* COLUMN（note） */
 .lead { text-align: center; color: var(--muted); font-size: 14px; margin: -12px 0 28px; }
 .card-text { font-size: 13px; color: var(--muted); line-height: 1.6; margin-top: 4px; }
+
+/* ホーム */
+.home { text-align: center; }
+.home img { display: block; margin: 0 auto; max-height: 78vh; width: auto; }
+.home-note { margin: 18px 0 0; font-family: var(--serif); font-size: 13px; letter-spacing: .2em; color: var(--muted); }
