@@ -20,6 +20,20 @@ TAG = os.environ.get("IG_TAG", "#keihinotaninews")
 API = "https://graph.instagram.com/v23.0/"
 ROOT = Path(__file__).resolve().parent.parent
 JST = timezone(timedelta(hours=9))
+# タグが無くても NEWS に載せる投稿。1行に「投稿のID<TAB>題（省略可）」
+PICKS = ROOT / "tools" / "ig_news_ids.txt"
+
+
+def load_picks():
+    picks = {}
+    if PICKS.exists():
+        for line in PICKS.read_text(encoding="utf-8").splitlines():
+            line = line.split("#", 1)[0].rstrip() if line.startswith("#") else line.rstrip()
+            if not line:
+                continue
+            pid, _, title = line.partition("\t")
+            picks[pid.strip()] = title.strip()
+    return picks
 
 
 def get(url, **q):
@@ -38,7 +52,7 @@ def save_image(url, name):
     return f"/uploads/ig/{name}"
 
 
-def fetch_posts(token):
+def fetch_posts(token, picks):
     fields = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp"
     d = get(API + "me/media", fields=fields, limit=100, access_token=token)
     posts, pages = [], 0
@@ -51,7 +65,7 @@ def fetch_posts(token):
         d = get(nxt)
     out = []
     for p in posts:
-        if TAG.lower() not in (p.get("caption") or "").lower():
+        if TAG.lower() not in (p.get("caption") or "").lower() and p["id"] not in picks:
             continue
         imgs = []
         if p["media_type"] == "CAROUSEL_ALBUM":
@@ -63,7 +77,7 @@ def fetch_posts(token):
             src = k.get("thumbnail_url") if k["media_type"] == "VIDEO" else k.get("media_url")
             if src:
                 imgs.append(save_image(src, f"{p['id']}_{i}.jpg"))
-        out.append({**p, "imgs": imgs})
+        out.append({**p, "imgs": imgs, "title": picks.get(p["id"], "")})
     return out
 
 
@@ -88,19 +102,20 @@ def caption_html(cap):
 
 def main():
     token = os.environ.get("IG_TOKEN") or Path.home().joinpath(".config/tartaros/ig_token").read_text().strip()
-    posts = fetch_posts(token)
+    posts = fetch_posts(token, load_picks())
     cards = []
     for p in posts:
         dt = datetime.fromisoformat(p["timestamp"].replace("+0000", "+00:00")).astimezone(JST)
         cap = p.get("caption") or ""
         first = re.sub(re.escape(TAG), "", cap, flags=re.I).strip().split("\n")[0]
-        title = first[:60] or "Instagram"
+        title = p.get("title") or first[:60] or "Instagram"
         figs = "".join(f'<figure><a href="{s}" class="lb"><img src="{s}" alt="" loading="lazy"></a></figure>'
                        for s in p["imgs"])
         body = (f'<article class="post"><p class="post-date">{dt:%Y.%m.%d}</p>'
                 f'<h1 class="post-title">{html.escape(title)}</h1>'
-                f'<div class="gallery" style="--cols:{min(3, max(1, len(p["imgs"])))}">{figs}</div>'
-                f'<div class="paragraph">{caption_html(cap)}</div>'
+                + (f'<div class="image"><img src="{p["imgs"][0]}" alt=""></div>' if len(p["imgs"]) == 1
+                   else f'<div class="gallery" style="--cols:{min(3, max(1, len(p["imgs"])))}">{figs}</div>')
+                + f'<div class="paragraph">{caption_html(cap)}</div>'
                 f'<p><a class="button" href="{html.escape(p["permalink"])}" target="_blank" rel="noopener">Instagram で見る</a></p>'
                 f'<p class="back"><a href="/news.html">← NEWS 一覧へ</a></p></article>')
         (ROOT / "news" / f"ig-{p['id']}.html").write_text(page_from_template(title, body, "/news.html"), encoding="utf-8")
